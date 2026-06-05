@@ -1,0 +1,48 @@
+name: Rust Backend CI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+    paths:
+      - 'backend/**'
+      - 'Justfile'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check-rust:
+    name: Format, Lint, and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Minimal Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          toolchain: nightly
+
+      - name: Install stable toolchain for testing
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Just command runner
+        uses: extractions/setup-just@v2
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "backend -> target"
+
+      - name: Check Formatting (Nightly)
+        run: just fmt-backend
+
+      - name: Run Clippy Linter (Stable)
+        run: just lint-backend
+
+      - name: Execute Tests (Stable)
+        run: just test-backend
