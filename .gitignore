@@ -1,0 +1,14 @@
+# Rust artifacts
+**/target/
+**/*.rs.bk
+
+# Flutter/Dart artifacts
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+**/build/
+
+# Operating System files
+.DS_Store
+Thumbs.db

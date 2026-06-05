@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "crates/core-ledger",
+    "crates/ldk-engine",
+    "crates/offramp-swap",
+    "services/api-server",
+    "services/ussd-worker"
+]
+resolver = "2"
