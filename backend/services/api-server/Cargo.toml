@@ -1,0 +1,12 @@
+[package]
+name = "api-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+actix-web = "4.4"
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.30", features = ["full"] }
+core-ledger = { path = "../../crates/core-ledger" }
+ldk-engine = { path = "../../crates/ldk-engine" }
+offramp-swap = { path = "../../crates/offramp-swap" }
