@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # Database Service
+  postgres:
+    image: postgres:15-alpine
+    container_name: satsbolt-db
+    restart: always
+    environment:
+      POSTGRES_USER: satsbolt
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: satsbolt_ledger
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Bitcoin Signet/Regtest Mock Node
+  bitcoind:
+    image: doubleknots/bitcoind:v24.0.1
+    container_name: satsbolt-bitcoind
+    restart: always
+    command:
+      - -regtest=1
+      - -rpcbind=0.0.0.0
+      - -rpcallowip=0.0.0.0/0
+      - -rpcuser=satsbolt
+      - -rpcpassword=satsboltpass
+      - -server=1
+      - -txindex=1
+    ports:
+      - "18443:18443"
+      - "18444:18444"
+
+  # Core API Server
+  api-server:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile.backend
+    container_name: satsbolt-api-server
+    restart: always
+    depends_on:
+      - postgres
+      - bitcoind
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgres://satsbolt:secretpassword@postgres:5432/satsbolt_ledger
+      - BITCOIN_RPC_URL=http://satsbolt:satsboltpass@bitcoind:18443
+      - RUST_LOG=info
+      - ENV=development
+    env_file:
+      - ../.env.example
+
+  # USSD Background Worker
+  ussd-worker:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile.backend
+    container_name: satsbolt-ussd-worker
+    command: ["/app/ussd-worker"]
+    restart: always
+    depends_on:
+      - postgres
+      - api-server
+    environment:
+      - DATABASE_URL=postgres://satsbolt:secretpassword@postgres:5432/satsbolt_ledger
+      - API_SERVER_URL=http://api-server:8080
+      - RUST_LOG=info
+    env_file:
+      - ../.env.example
+
+volumes:
+  postgres_data:

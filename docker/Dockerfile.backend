@@ -1,0 +1,39 @@
+# Stage 1: Build the Rust services
+FROM rust:1.80-slim-bookworm AS builder
+
+WORKDIR /usr/src/satsbolt
+
+# Copy manifests
+COPY backend/Cargo.toml backend/Cargo.toml
+COPY backend/crates/core-ledger/Cargo.toml backend/crates/core-ledger/Cargo.toml
+COPY backend/crates/ldk-engine/Cargo.toml backend/crates/ldk-engine/Cargo.toml
+COPY backend/crates/offramp-swap/Cargo.toml backend/crates/offramp-swap/Cargo.toml
+COPY backend/services/api-server/Cargo.toml backend/services/api-server/Cargo.toml
+COPY backend/services/ussd-worker/Cargo.toml backend/services/ussd-worker/Cargo.toml
+
+# Create dummy source files for dependency building or copy sources
+# Since we are in a monorepo workspace, we will copy actual sources directly:
+COPY backend/crates backend/crates
+COPY backend/services backend/services
+
+# Build all workspace binaries in release mode
+WORKDIR /usr/src/satsbolt/backend
+RUN cargo build --release
+
+# Stage 2: Runtime image
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libssl-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy release builds from builder
+COPY --from=builder /usr/src/satsbolt/backend/target/release/api-server /app/api-server
+COPY --from=builder /usr/src/satsbolt/backend/target/release/ussd-worker /app/ussd-worker
+
+# Default command is api-server. Can be overridden in compose for ussd-worker.
+CMD ["/app/api-server"]
