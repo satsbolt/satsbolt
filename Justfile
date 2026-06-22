@@ -43,9 +43,9 @@ test-frontend:
 
 # --- Docker & Infrastructure Recipes ---
 
-# Spin up local PostgreSQL and Mock Bitcoin Node containers
+# Spin up local PostgreSQL container
 dev-up:
-    docker compose -f docker/docker-compose.yml up -d
+    docker compose -f docker/docker-compose.yml up -d postgres
 
 # Stop and remove local containers and networks
 dev-down:
