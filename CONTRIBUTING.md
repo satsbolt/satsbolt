@@ -20,15 +20,10 @@ To run the SatsBolt monorepo workspace locally, ensure you have the following in
 
 ## 2. Setting Up Your Development Environment
 
-1. Fork the repository and clone your fork.
-2. Initialize your local configuration file:
-   ```bash
-   cp .env.example .env
-   ```
-3. Spin up the backend support containers (database and bitcoin nodes):
-   ```bash
-   just dev-up
-   ```
+Please follow the detailed step-by-step setup instructions in the [README.md](README.md#3-local-development--setup) to:
+1. Initialize your local configuration file (`cp .env.example .env`).
+2. Set up PostgreSQL (either natively or via Docker).
+3. Set up and link Lightning Polar nodes for local Regtest development.
 
 ---
 
