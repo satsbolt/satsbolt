@@ -38,7 +38,11 @@ pub enum SwapStatus {
 pub trait SwapProvider: Send + Sync {
     fn name(&self) -> &str;
     fn get_quote(&self, amount_sats: u64, currency: &str) -> Result<Quote, Box<dyn Error>>;
-    fn initiate_payout(&self, quote_id: &str, destination: PayoutDestination) -> Result<SwapResult, Box<dyn Error>>;
+    fn initiate_payout(
+        &self,
+        quote_id: &str,
+        destination: PayoutDestination,
+    ) -> Result<SwapResult, Box<dyn Error>>;
     fn get_status(&self, swap_id: &str) -> Result<SwapStatus, Box<dyn Error>>;
 }
 
