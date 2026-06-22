@@ -19,39 +19,36 @@ SatsBolt splits transactions into a hybrid engine to optimize performance and re
 For structural specs and requirements, see the documentation in `docs/`:
 - 📄 [Software Requirements Specification (SRS)](docs/srs.md)
 - 📄 [System Architecture Documentation](docs/architecture.md)
+- 📄 [Sprint 0 Alignment Notes](docs/sprint0_alignment.md)
 
 ---
 
-## 2. Directory Structure
+## 2. Key Features & Tech Stack
+
+### Features
+- **Zero-Fee Internal Ledger**: Instant, high-throughput double-entry accounting transactions settled off-chain with absolute zero fees.
+- **Lightning Network Rail**: Inbound deposits and outbound withdrawals integrated with Rust-native LDK (Lightning Dev Kit).
+- **Asynchronous Off-Ramp**: Convert sats to local fiat using a background worker queue with support for external swap providers.
+- **Dual-Mode Mobile App**: Seamless switching between Creator (Tipping) and Merchant (Point of Sale) modes.
+- **USSD Interface Support**: Telephony gateway integration for offline users.
+
+### Technology Stack
+- **Backend**: Rust, Actix-web, SQLx, PostgreSQL
+- **Lightning Rail**: LDK (Lightning Dev Kit)
+- **Frontend Client**: Flutter, GetX
+- **Development Tooling**: Lightning Polar, Docker, Justfile
+
+---
+
+## 3. Directory Structure
 
 ```
 satsbolt/
-├── .github/
-│   ├── ISSUE_TEMPLATE/        # Bug report and feature request templates
-│   ├── PULL_REQUEST_TEMPLATE.md
-│   └── workflows/
-│       ├── backend.yml        # Rust compiler and test workflow
-│       └── mobile.yml         # Flutter test and analyzer workflow
-├── docs/                      # Technical specifications and documentation
-├── backend/                   # Rust Workspace Root
-│   ├── Cargo.toml
-│   ├── crates/                # Core libraries
-│   │   ├── core-ledger/       # Double-entry ledger engine
-│   │   ├── ldk-engine/        # Lightning Dev Kit integration
-│   │   └── offramp-swap/      # SwapProvider traits and plugins
-│   └── services/              # Executable applications
-│       ├── api-server/        # Actix-web backend server
-│       └── ussd-worker/       # Offline USSD background processor
-├── frontend/
-│   └── mobile/                # Flutter native mobile app
-├── docker/                    # PostgreSQL and Bitcoind Regtest containers
-├── scripts/                   # Utility development scripts
-├── .env.example               # Environmental variable templates
-├── Justfile                   # Task automation recipe scripts
-├── LICENSE                    # MIT License
-├── README.md
-├── CONTRIBUTING.md            # Git branching and contribution guide
-└── CODE_OF_CONDUCT.md
+├── backend/            # Rust workspace (API Server, USSD Worker, LDK, Ledger)
+├── frontend/           # Mobile client app (Flutter)
+├── docker/             # Local database orchestration configurations
+├── docs/               # Technical specifications & documentation
+└── scripts/            # Script helpers for automation
 ```
 
 ---
@@ -63,16 +60,58 @@ SatsBolt uses `just` as a unified build and execution tool. Ensure you have the 
 cargo install just
 ```
 
-### 1. Copy Environment Configuration
+### Step 1: Copy Environment Configuration
+Create your local `.env` configuration file from the template:
 ```bash
 cp .env.example .env
 ```
 
-### 2. Launch Local Signet/Regtest Infrastructure
-Boot up the Docker containers containing the PostgreSQL database and mock Bitcoin node:
-```bash
-just dev-up
-```
+### Step 2: Database Setup
+You can run PostgreSQL either natively on your system or via Docker Compose.
+
+#### Option A: Native PostgreSQL Setup (Recommended for Linux/macOS)
+1. **Install PostgreSQL**:
+   - **Ubuntu/Debian**: `sudo apt install -y postgresql postgresql-contrib`
+   - **macOS**: `brew install postgresql@15`
+2. **Start and enable the service**:
+   - `sudo systemctl start postgresql`
+   - `sudo systemctl enable postgresql`
+3. **Configure Database & User Credentials**:
+   Access the Postgres console:
+   ```bash
+   sudo -u postgres psql
+   ```
+   Run the SQL commands to create the database, user, and grant privileges:
+   ```sql
+   CREATE DATABASE satsbolt_ledger;
+   CREATE USER satsbolt WITH PASSWORD 'secretpassword';
+   GRANT ALL PRIVILEGES ON DATABASE satsbolt_ledger TO satsbolt;
+   \q
+   ```
+4. **Apply SQL Schema Migration**:
+   ```bash
+   sudo -u postgres psql -d satsbolt_ledger -f backend/migrations/0001_init_schema.sql
+   ```
+
+#### Option B: Docker Compose Setup
+1. **Spin up the database container**:
+   ```bash
+   just dev-up
+   ```
+2. **Apply SQL Schema Migration**:
+   ```bash
+   docker exec -i satsbolt-db psql -U satsbolt -d satsbolt_ledger < backend/migrations/0001_init_schema.sql
+   ```
+
+### Step 3: Bitcoin & Lightning Node Setup (Lightning Polar)
+SatsBolt uses **Lightning Polar** to manage local Regtest bitcoin nodes and LND/CLN instances.
+1. Download and run [Lightning Polar](https://lightningpolar.com/).
+2. Create a new network with at least 1 `bitcoind` node and 2 `LND` (or CLN) nodes.
+3. Start the network in Polar.
+4. Update your local `.env` configuration with the Polar nodes' details:
+   - `BITCOIN_RPC_URL`: Set to the RPC endpoint of the `bitcoind` node.
+   - `BITCOIN_RPC_USER` & `BITCOIN_RPC_PASS`: Set to the RPC credentials shown in Polar.
+   - For LDK engine peer connections, use the peer addresses and ports exposed by your Polar nodes.
 
 ---
 
@@ -108,18 +147,12 @@ just test-frontend
 
 ---
 
-## 5. Security Policy
+## 5. Security
 
-If you discover a vulnerability, please do not open a public issue. Instead, report it directly to the maintainers or follow the security coordinator instructions in [CONTRIBUTING.md](CONTRIBUTING.md).
+If you discover a security vulnerability, please do not open a public issue. Follow the security instructions in [CONTRIBUTING.md](CONTRIBUTING.md) or contact security coordinators directly.
 
 ---
 
-## 6. Authors & Contributors
+## 6. License
 
-### Authors
-*   **Muhammad Hamaza** (Core Maintainer)
-*   **Usman** (Core Maintainer)
-
-
-### Contributors
-We welcome contributions from the open-source community! Check out [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
+SatsBolt is released under the [MIT License](LICENSE).
