@@ -31,7 +31,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
 CREATE TABLE IF NOT EXISTS accounts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE, -- NULL for platform-owned accounts (e.g. hot wallet, fee account)
-    name VARCHAR(100) NOT NULL,sudo -u postgres psql -d satsbolt_ledger -f backend/migrations/0001_init_schema.sql
+    name VARCHAR(100) NOT NULL,
 
     account_type VARCHAR(50) NOT NULL, -- 'asset', 'liability', 'equity', 'revenue', 'expense'
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL

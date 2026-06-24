@@ -59,7 +59,7 @@ jobs:
 
       - name: Initialize Database Schema
         run: |
-          PGPASSWORD=secretpassword psql -h localhost -U satsbolt -d satsbolt_ledger -f backend/migrations/0001_init_schema.sql
+          PGPASSWORD=secretpassword psql -v ON_ERROR_STOP=1 -h localhost -U satsbolt -d satsbolt_ledger -f backend/migrations/0001_init_schema.sql
 
       - name: Check Formatting (Nightly)
         run: just fmt-backend
