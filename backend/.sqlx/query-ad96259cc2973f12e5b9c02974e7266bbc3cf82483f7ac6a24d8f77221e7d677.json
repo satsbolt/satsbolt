@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO ledger_entries (ledger_transaction_id, account_id, amount)\n            VALUES ($1, $2, $3)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ad96259cc2973f12e5b9c02974e7266bbc3cf82483f7ac6a24d8f77221e7d677"
+}
