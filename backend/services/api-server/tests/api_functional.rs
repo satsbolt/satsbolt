@@ -211,7 +211,7 @@ async fn test_tip_and_balance_flow() {
     // Register User A
     let req = test::TestRequest::post()
         .uri("/api/v1/auth/register")
-        .set_json(&json!({
+        .set_json(json!({
             "username": "tip_user_x",
             "email": "x@example.com",
             "password": "pass"
@@ -221,7 +221,7 @@ async fn test_tip_and_balance_flow() {
     let body_a: serde_json::Value = test::read_body_json(resp).await;
     let token_a = body_a["token"]
         .as_str()
-        .expect(&format!("Registration failed: {:?}", body_a))
+        .unwrap_or_else(|| panic!("Registration failed: {:?}", body_a))
         .to_string();
 
     // Query Balance for User A
@@ -237,7 +237,7 @@ async fn test_tip_and_balance_flow() {
     // Register User B
     let req = test::TestRequest::post()
         .uri("/api/v1/auth/register")
-        .set_json(&json!({
+        .set_json(json!({
             "username": "tip_user_y",
             "email": "y@example.com",
             "password": "pass"
@@ -281,7 +281,7 @@ async fn test_tip_and_balance_flow() {
     let tip_req = test::TestRequest::post()
         .uri("/api/v1/ledger/tip")
         .insert_header(("Authorization", format!("Bearer {}", token_a)))
-        .set_json(&json!({
+        .set_json(json!({
             "recipient_username": "tip_user_y",
             "amount_sats": 500,
             "memo": "Enjoy the sats!"
@@ -312,7 +312,7 @@ async fn test_tip_and_balance_flow() {
     let tip_req = test::TestRequest::post()
         .uri("/api/v1/ledger/tip")
         .insert_header(("Authorization", format!("Bearer {}", token_a)))
-        .set_json(&json!({
+        .set_json(json!({
             "recipient_username": "tip_user_y",
             "amount_sats": 1000, // They only have 500!
             "memo": "Overdraft"
