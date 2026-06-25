@@ -11,11 +11,30 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  SQLX_OFFLINE: true
 
 jobs:
   check-rust:
     name: Format, Lint, and Test
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: satsbolt
+          POSTGRES_PASSWORD: secretpassword
+          POSTGRES_DB: satsbolt_ledger
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://satsbolt:secretpassword@localhost:5432/satsbolt_ledger
 
     steps:
       - name: Checkout Repository
@@ -37,6 +56,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "backend -> target"
+
+      - name: Initialize Database Schema
+        run: |
+          PGPASSWORD=secretpassword psql -v ON_ERROR_STOP=1 -h localhost -U satsbolt -d satsbolt_ledger -f backend/migrations/0001_init_schema.sql
 
       - name: Check Formatting (Nightly)
         run: just fmt-backend

@@ -1,15 +1,9 @@
 // Core Ledger Crate
 
+pub mod errors;
+pub mod ledger;
+pub mod models;
+
 pub fn initialize_ledger() -> bool {
     true
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_ledger_init() {
-        assert!(initialize_ledger());
-    }
 }
