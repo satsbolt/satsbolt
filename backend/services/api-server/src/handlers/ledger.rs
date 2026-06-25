@@ -96,8 +96,14 @@ pub async fn post_tip(
     .await
     {
         Ok(Some(acc)) => acc.id,
-        Ok(None) => return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Sender account not found"})),
-        Err(e) => return HttpResponse::InternalServerError().json(serde_json::json!({"error": format!("DB error: {}", e)})),
+        Ok(None) => {
+            return HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": "Sender account not found"}))
+        }
+        Err(e) => {
+            return HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": format!("DB error: {}", e)}))
+        }
     };
 
     // 2. Get Recipient's User ID and Liability Account
@@ -114,8 +120,14 @@ pub async fn post_tip(
     .await
     {
         Ok(Some(acc)) => acc.id,
-        Ok(None) => return HttpResponse::NotFound().json(serde_json::json!({"error": "Recipient user not found"})),
-        Err(e) => return HttpResponse::InternalServerError().json(serde_json::json!({"error": format!("DB error: {}", e)})),
+        Ok(None) => {
+            return HttpResponse::NotFound()
+                .json(serde_json::json!({"error": "Recipient user not found"}))
+        }
+        Err(e) => {
+            return HttpResponse::InternalServerError()
+                .json(serde_json::json!({"error": format!("DB error: {}", e)}))
+        }
     };
 
     // 3. Create the double-entry transactions
@@ -132,7 +144,10 @@ pub async fn post_tip(
         },
     ];
 
-    let description = req.memo.clone().unwrap_or_else(|| format!("Tip to {}", recipient_username));
+    let description = req
+        .memo
+        .clone()
+        .unwrap_or_else(|| format!("Tip to {}", recipient_username));
 
     // 4. Execute atomic transaction (this automatically prevents overdrafts!)
     match core_ledger::ledger::execute_transaction(pool.get_ref(), &description, &entries).await {
@@ -152,4 +167,3 @@ pub async fn post_tip(
         })),
     }
 }
-

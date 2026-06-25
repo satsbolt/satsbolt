@@ -36,18 +36,20 @@ async fn test_auth_and_profile_endpoints_flow() {
 
     // Initialize mock Actix application
     let app = test::init_service(
-        App::new().app_data(web::Data::new(pool.clone())).service(
-            web::scope("/api/v1/auth")
-                .route("/register", web::post().to(handlers::auth::register))
-                .route("/login", web::post().to(handlers::auth::login))
-                .route("/refresh", web::post().to(handlers::auth::refresh))
-                .route("/profile", web::get().to(handlers::auth::get_profile))
-                .route("/profile", web::put().to(handlers::auth::update_profile)),
-        )
-        .service(
-            web::scope("/api/v1/ledger")
-                .route("/balance", web::get().to(handlers::ledger::get_balance)),
-        ),
+        App::new()
+            .app_data(web::Data::new(pool.clone()))
+            .service(
+                web::scope("/api/v1/auth")
+                    .route("/register", web::post().to(handlers::auth::register))
+                    .route("/login", web::post().to(handlers::auth::login))
+                    .route("/refresh", web::post().to(handlers::auth::refresh))
+                    .route("/profile", web::get().to(handlers::auth::get_profile))
+                    .route("/profile", web::put().to(handlers::auth::update_profile)),
+            )
+            .service(
+                web::scope("/api/v1/ledger")
+                    .route("/balance", web::get().to(handlers::ledger::get_balance)),
+            ),
     )
     .await;
 
@@ -192,16 +194,17 @@ async fn test_tip_and_balance_flow() {
 
     // Initialize mock Actix application
     let app = test::init_service(
-        App::new().app_data(web::Data::new(pool.clone()))
+        App::new()
+            .app_data(web::Data::new(pool.clone()))
             .service(
                 web::scope("/api/v1/auth")
-                    .route("/register", web::post().to(handlers::auth::register))
+                    .route("/register", web::post().to(handlers::auth::register)),
             )
             .service(
                 web::scope("/api/v1/ledger")
                     .route("/balance", web::get().to(handlers::ledger::get_balance))
                     .route("/tip", web::post().to(handlers::ledger::post_tip)),
-            )
+            ),
     )
     .await;
 
@@ -216,7 +219,10 @@ async fn test_tip_and_balance_flow() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     let body_a: serde_json::Value = test::read_body_json(resp).await;
-    let token_a = body_a["token"].as_str().expect(&format!("Registration failed: {:?}", body_a)).to_string();
+    let token_a = body_a["token"]
+        .as_str()
+        .expect(&format!("Registration failed: {:?}", body_a))
+        .to_string();
 
     // Query Balance for User A
     let req = test::TestRequest::get()
@@ -250,13 +256,12 @@ async fn test_tip_and_balance_flow() {
     .unwrap()
     .id;
 
-    let sys_account = sqlx::query!(
-        "SELECT id FROM accounts WHERE name = 'hot_wallet' AND user_id IS NULL"
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap()
-    .id;
+    let sys_account =
+        sqlx::query!("SELECT id FROM accounts WHERE name = 'hot_wallet' AND user_id IS NULL")
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+            .id;
 
     let entries = vec![
         core_ledger::ledger::NewLedgerEntry {

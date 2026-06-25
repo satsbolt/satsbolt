@@ -32,23 +32,27 @@ pub async fn create_invoice(
     }
 
     let fake_invoice_id = Uuid::new_v4();
-    let fake_lnbc = format!("lnbc{}1fakeinvoicestubforflutterdevs{}xyz", req.amount_sats, fake_invoice_id.simple());
+    let fake_lnbc = format!(
+        "lnbc{}1fakeinvoicestubforflutterdevs{}xyz",
+        req.amount_sats,
+        fake_invoice_id.simple()
+    );
 
     HttpResponse::Created().json(InvoiceResponse {
         id: fake_invoice_id,
         payment_request: fake_lnbc,
         amount_sats: req.amount_sats,
-        memo: req.memo.clone().unwrap_or_else(|| "SatsBolt Merchant Payment".to_string()),
+        memo: req
+            .memo
+            .clone()
+            .unwrap_or_else(|| "SatsBolt Merchant Payment".to_string()),
         status: "pending".to_string(),
     })
 }
 
 /// [STUB] Get the status of an existing Lightning Invoice.
 /// In Sprint 2, this will check our database/LDK to see if the payment has settled.
-pub async fn get_invoice(
-    _user: ReqUser,
-    path: web::Path<Uuid>,
-) -> impl Responder {
+pub async fn get_invoice(_user: ReqUser, path: web::Path<Uuid>) -> impl Responder {
     let invoice_id = path.into_inner();
 
     // Just return a fake "pending" status so the mobile dev can build the loading spinner UI!

@@ -65,8 +65,14 @@ async fn main() -> std::io::Result<()> {
             // Register Merchant routes
             .service(
                 web::scope("/api/v1/merchant")
-                    .route("/invoice", web::post().to(handlers::merchant::create_invoice))
-                    .route("/invoice/{id}", web::get().to(handlers::merchant::get_invoice)),
+                    .route(
+                        "/invoice",
+                        web::post().to(handlers::merchant::create_invoice),
+                    )
+                    .route(
+                        "/invoice/{id}",
+                        web::get().to(handlers::merchant::get_invoice),
+                    ),
             )
     })
     .bind(&bind_address)?
