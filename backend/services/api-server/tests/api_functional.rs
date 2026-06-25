@@ -256,12 +256,18 @@ async fn test_tip_and_balance_flow() {
     .unwrap()
     .id;
 
-    let sys_account =
-        sqlx::query!("SELECT id FROM accounts WHERE name = 'hot_wallet' AND user_id IS NULL")
+    let sys_account = match sqlx::query!("SELECT id FROM accounts WHERE name = 'hot_wallet' AND user_id IS NULL")
+        .fetch_optional(&pool)
+        .await
+        .unwrap()
+    {
+        Some(acc) => acc.id,
+        None => sqlx::query!("INSERT INTO accounts (id, name, account_type) VALUES ($1, 'hot_wallet', 'asset') RETURNING id", uuid::Uuid::new_v4())
             .fetch_one(&pool)
             .await
             .unwrap()
-            .id;
+            .id,
+    };
 
     let entries = vec![
         core_ledger::ledger::NewLedgerEntry {
