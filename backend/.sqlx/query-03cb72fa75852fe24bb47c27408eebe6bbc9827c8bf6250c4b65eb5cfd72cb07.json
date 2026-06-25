@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM users WHERE username = 'api_test_user'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "03cb72fa75852fe24bb47c27408eebe6bbc9827c8bf6250c4b65eb5cfd72cb07"
+}
