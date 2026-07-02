@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    UPDATE payout_jobs\n                    SET status = 'processing', attempts = attempts + 1, updated_at = NOW()\n                    WHERE id = $1\n                    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "220b00ebb1be1389c2d020251b9937b0a1a777e74ba6afceeb7d16c566683f1a"
+}

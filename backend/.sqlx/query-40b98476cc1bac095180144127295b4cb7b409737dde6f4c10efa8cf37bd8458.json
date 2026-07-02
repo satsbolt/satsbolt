@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    UPDATE withdrawals\n                    SET status = 'succeeded', completed_at = NOW()\n                    WHERE id = $1\n                    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "40b98476cc1bac095180144127295b4cb7b409737dde6f4c10efa8cf37bd8458"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM users WHERE username IN ('pay_user_x', 'pay_user_y')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "70097c149d4ea4fdd9a1b388a7fe3fbf63c5d7ecc1063088d783e502b3c8b767"
+}
