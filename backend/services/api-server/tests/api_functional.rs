@@ -391,9 +391,11 @@ async fn test_lightning_deposit_merchant_and_offramp_flow() {
     .await;
 
     // 1. Register a test user
+    let pay_username = format!("pay_user_x_{}", uuid::Uuid::new_v4());
+    let pay_email = format!("pay_user_x_{}@example.com", uuid::Uuid::new_v4());
     let register_payload = json!({
-        "username": "pay_user_x",
-        "email": "pay_user_x@example.com",
+        "username": pay_username,
+        "email": pay_email,
         "password": "securepassword123"
     });
     let req = test::TestRequest::post()
@@ -412,7 +414,7 @@ async fn test_lightning_deposit_merchant_and_offramp_flow() {
     // Ensure platform accounts are bootstrapped
     let _ = api_server::bootstrap_platform_accounts(&pool).await;
 
-    let user_id = sqlx::query!("SELECT id FROM users WHERE username = 'pay_user_x'")
+    let user_id = sqlx::query!("SELECT id FROM users WHERE username = $1", pay_username)
         .fetch_one(&pool)
         .await
         .unwrap()

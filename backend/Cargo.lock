@@ -1672,7 +1672,10 @@ name = "offramp-swap"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "reqwest",
  "serde",
+ "serde_json",
+ "uuid",
 ]
 
 [[package]]
