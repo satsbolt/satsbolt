@@ -56,6 +56,24 @@ async fn main() -> std::io::Result<()> {
                     .route("/profile", web::get().to(handlers::auth::get_profile))
                     .route("/profile", web::put().to(handlers::auth::update_profile)),
             )
+            // Register Ledger routes
+            .service(
+                web::scope("/api/v1/ledger")
+                    .route("/balance", web::get().to(handlers::ledger::get_balance))
+                    .route("/tip", web::post().to(handlers::ledger::post_tip)),
+            )
+            // Register Merchant routes
+            .service(
+                web::scope("/api/v1/merchant")
+                    .route(
+                        "/invoice",
+                        web::post().to(handlers::merchant::create_invoice),
+                    )
+                    .route(
+                        "/invoice/{id}",
+                        web::get().to(handlers::merchant::get_invoice),
+                    ),
+            )
     })
     .bind(&bind_address)?
     .run()
