@@ -1,7 +1,7 @@
 use actix_web::{web, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use sqlx::PgPool;
+use uuid::Uuid;
 
 use crate::auth::ReqUser;
 
@@ -33,7 +33,8 @@ pub async fn create_invoice(
     }
 
     // Call lightning-node to create the invoice
-    let ldk_node_url = std::env::var("LIGHTNING_NODE_URL").unwrap_or_else(|_| "http://localhost:8081".to_string());
+    let ldk_node_url =
+        std::env::var("LIGHTNING_NODE_URL").unwrap_or_else(|_| "http://localhost:8081".to_string());
     let client = reqwest::Client::new();
     let ldk_payload = serde_json::json!({
         "amount_msat": (req.amount_sats * 1000) as u64,
@@ -42,15 +43,19 @@ pub async fn create_invoice(
         "user_id": user.id.to_string(),
     });
 
-    let res = match client.post(format!("{}/invoice", ldk_node_url))
+    let res = match client
+        .post(format!("{}/invoice", ldk_node_url))
         .json(&ldk_payload)
         .send()
-        .await {
-            Ok(r) => r,
-            Err(e) => return HttpResponse::InternalServerError().json(serde_json::json!({
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            return HttpResponse::InternalServerError().json(serde_json::json!({
                 "error": format!("Failed to contact lightning-node: {}", e)
-            })),
-        };
+            }))
+        }
+    };
 
     if !res.status().is_success() {
         let err_body = res.text().await.unwrap_or_default();
@@ -67,9 +72,11 @@ pub async fn create_invoice(
 
     let ldk_data: LdkInvoiceResponse = match res.json().await {
         Ok(d) => d,
-        Err(e) => return HttpResponse::InternalServerError().json(serde_json::json!({
-            "error": format!("Failed to parse lightning-node response: {}", e)
-        })),
+        Err(e) => {
+            return HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": format!("Failed to parse lightning-node response: {}", e)
+            }))
+        }
     };
 
     let invoice_id = Uuid::new_v4();
@@ -85,7 +92,8 @@ pub async fn create_invoice(
         req.amount_sats
     )
     .execute(pool.get_ref())
-    .await {
+    .await
+    {
         return HttpResponse::InternalServerError().json(serde_json::json!({
             "error": format!("Failed to save invoice: {}", e)
         }));
@@ -95,7 +103,10 @@ pub async fn create_invoice(
         id: invoice_id,
         payment_request: ldk_data.invoice,
         amount_sats: req.amount_sats,
-        memo: req.memo.clone().unwrap_or_else(|| "SatsBolt Merchant Payment".to_string()),
+        memo: req
+            .memo
+            .clone()
+            .unwrap_or_else(|| "SatsBolt Merchant Payment".to_string()),
         status: "pending".to_string(),
     })
 }
@@ -117,7 +128,8 @@ pub async fn get_invoice(
         invoice_id
     )
     .fetch_optional(pool.get_ref())
-    .await {
+    .await
+    {
         Ok(Some(inv)) => HttpResponse::Ok().json(InvoiceResponse {
             id: inv.id,
             payment_request: inv.payment_request,

@@ -1,12 +1,12 @@
 use actix_web::{web, HttpResponse, Responder};
+use log::error;
 use serde::Deserialize;
 use sqlx::PgPool;
-use uuid::Uuid;
 use std::sync::{Arc, Mutex};
-use log::error;
+use uuid::Uuid;
 
 use crate::auth::ReqUser;
-use offramp_swap::{SwapProvider, Quote, PayoutDestination, SwapStatus};
+use offramp_swap::{PayoutDestination, Quote, SwapProvider, SwapStatus};
 
 pub struct QuotesCache {
     pub quotes: Mutex<std::collections::HashMap<String, Quote>>,
@@ -50,7 +50,11 @@ pub async fn get_quote(
 
     match provider.get_quote(req.amount_sats, &req.currency) {
         Ok(quote) => {
-            cache.quotes.lock().unwrap().insert(quote.quote_id.clone(), quote.clone());
+            cache
+                .quotes
+                .lock()
+                .unwrap()
+                .insert(quote.quote_id.clone(), quote.clone());
             HttpResponse::Ok().json(quote)
         }
         Err(e) => {
@@ -67,8 +71,9 @@ pub async fn withdraw_lightning(
     req: web::Json<LightningWithdrawRequest>,
 ) -> impl Responder {
     // Call lightning-node to pay the invoice
-    let ldk_node_url = std::env::var("LIGHTNING_NODE_URL").unwrap_or_else(|_| "http://localhost:8081".to_string());
-    
+    let ldk_node_url =
+        std::env::var("LIGHTNING_NODE_URL").unwrap_or_else(|_| "http://localhost:8081".to_string());
+
     // 1. Fetch user liability account
     let user_account = match sqlx::query!(
         r#"
@@ -80,7 +85,9 @@ pub async fn withdraw_lightning(
     .await
     {
         Ok(acc) => acc.id,
-        Err(_) => return HttpResponse::InternalServerError().body("User liability account not found"),
+        Err(_) => {
+            return HttpResponse::InternalServerError().body("User liability account not found")
+        }
     };
 
     // 2. Fetch platform hot_wallet account
@@ -93,7 +100,10 @@ pub async fn withdraw_lightning(
     .await
     {
         Ok(acc) => acc.id,
-        Err(_) => return HttpResponse::InternalServerError().body("Platform hot_wallet account not found"),
+        Err(_) => {
+            return HttpResponse::InternalServerError()
+                .body("Platform hot_wallet account not found")
+        }
     };
 
     // Parse/decode the invoice to see amount.
@@ -101,9 +111,13 @@ pub async fn withdraw_lightning(
     // Since /pay takes the invoice, lets make the /pay request first.
     // Wait! To prevent overdraft, we need to check the balance of the user's account first.
     // Let's get the balance of the user.
-    let balance = match core_ledger::ledger::get_account_balance(pool.get_ref(), user_account).await {
+    let balance = match core_ledger::ledger::get_account_balance(pool.get_ref(), user_account).await
+    {
         Ok(b) => b,
-        Err(e) => return HttpResponse::InternalServerError().body(format!("Failed to get balance: {}", e)),
+        Err(e) => {
+            return HttpResponse::InternalServerError()
+                .body(format!("Failed to get balance: {}", e))
+        }
     };
 
     // Call lightning-node `/pay`
@@ -113,13 +127,18 @@ pub async fn withdraw_lightning(
         "withdrawal_id": Uuid::new_v4().to_string(),
     });
 
-    let res = match client.post(format!("{}/pay", ldk_node_url))
+    let res = match client
+        .post(format!("{}/pay", ldk_node_url))
         .json(&ldk_payload)
         .send()
-        .await {
-            Ok(r) => r,
-            Err(e) => return HttpResponse::InternalServerError().body(format!("Failed to contact lightning-node: {}", e)),
-        };
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            return HttpResponse::InternalServerError()
+                .body(format!("Failed to contact lightning-node: {}", e))
+        }
+    };
 
     if !res.status().is_success() {
         let err_body = res.text().await.unwrap_or_default();
@@ -136,7 +155,10 @@ pub async fn withdraw_lightning(
 
     let ldk_data: LdkPayResponse = match res.json().await {
         Ok(d) => d,
-        Err(e) => return HttpResponse::InternalServerError().body(format!("Failed to parse response: {}", e)),
+        Err(e) => {
+            return HttpResponse::InternalServerError()
+                .body(format!("Failed to parse response: {}", e))
+        }
     };
 
     // For simplicity, let's assume the amount is parsed/returned or we can estimate it,
@@ -145,13 +167,15 @@ pub async fn withdraw_lightning(
     // Wait, since we are in Rust, `ldk-node` v0.7.0's re-exported `Bolt11Invoice` is in scope or we can use it!
     // Yes! `use ldk_node::lightning_invoice::Bolt11Invoice;` is perfectly available in the cargo dependencies!
     // Let's parse it to get the exact amount in sats:
-    use std::str::FromStr;
     use lightning_invoice::Bolt11Invoice;
+    use std::str::FromStr;
     let amount_sats = match Bolt11Invoice::from_str(&req.invoice) {
         Ok(inv) => match inv.amount_milli_satoshis() {
             Some(msat) => msat.div_ceil(1000), // round up to nearest sat
-            None => return HttpResponse::BadRequest().body("Amountless invoices not supported yet"),
-        }
+            None => {
+                return HttpResponse::BadRequest().body("Amountless invoices not supported yet")
+            }
+        },
         Err(e) => return HttpResponse::BadRequest().body(format!("Invalid invoice: {:?}", e)),
     };
 
@@ -165,7 +189,10 @@ pub async fn withdraw_lightning(
     // Now, write to double-entry ledger inside a Postgres transaction
     let mut tx = match pool.begin().await {
         Ok(t) => t,
-        Err(e) => return HttpResponse::InternalServerError().body(format!("DB transaction failed: {}", e)),
+        Err(e) => {
+            return HttpResponse::InternalServerError()
+                .body(format!("DB transaction failed: {}", e))
+        }
     };
 
     // Save withdrawal record
@@ -201,8 +228,11 @@ pub async fn withdraw_lightning(
         },
     ];
 
-    if let Err(e) = core_ledger::ledger::execute_transaction_tx(&mut tx, &description, &entries).await {
-        return HttpResponse::InternalServerError().body(format!("Ledger transaction failed: {}", e));
+    if let Err(e) =
+        core_ledger::ledger::execute_transaction_tx(&mut tx, &description, &entries).await
+    {
+        return HttpResponse::InternalServerError()
+            .body(format!("Ledger transaction failed: {}", e));
     }
 
     if let Err(e) = tx.commit().await {
@@ -250,7 +280,9 @@ pub async fn withdraw_offramp(
     .await
     {
         Ok(acc) => acc.id,
-        Err(_) => return HttpResponse::InternalServerError().body("User liability account not found"),
+        Err(_) => {
+            return HttpResponse::InternalServerError().body("User liability account not found")
+        }
     };
 
     let hot_wallet_account = match sqlx::query!(
@@ -262,7 +294,10 @@ pub async fn withdraw_offramp(
     .await
     {
         Ok(acc) => acc.id,
-        Err(_) => return HttpResponse::InternalServerError().body("Platform hot_wallet account not found"),
+        Err(_) => {
+            return HttpResponse::InternalServerError()
+                .body("Platform hot_wallet account not found")
+        }
     };
 
     let platform_fees_account = match sqlx::query!(
@@ -274,15 +309,22 @@ pub async fn withdraw_offramp(
     .await
     {
         Ok(acc) => acc.id,
-        Err(_) => return HttpResponse::InternalServerError().body("Platform platform_fees account not found"),
+        Err(_) => {
+            return HttpResponse::InternalServerError()
+                .body("Platform platform_fees account not found")
+        }
     };
 
     let total_sats = (quote.amount_sats + quote.fee_sats) as i64;
 
     // Check balance
-    let balance = match core_ledger::ledger::get_account_balance(pool.get_ref(), user_account).await {
+    let balance = match core_ledger::ledger::get_account_balance(pool.get_ref(), user_account).await
+    {
         Ok(b) => b,
-        Err(e) => return HttpResponse::InternalServerError().body(format!("Failed to check balance: {}", e)),
+        Err(e) => {
+            return HttpResponse::InternalServerError()
+                .body(format!("Failed to check balance: {}", e))
+        }
     };
 
     if balance < total_sats {
@@ -292,7 +334,9 @@ pub async fn withdraw_offramp(
     // Create database transaction
     let mut tx = match pool.begin().await {
         Ok(t) => t,
-        Err(e) => return HttpResponse::InternalServerError().body(format!("Transaction failed: {}", e)),
+        Err(e) => {
+            return HttpResponse::InternalServerError().body(format!("Transaction failed: {}", e))
+        }
     };
 
     // Save withdrawal record in pending state
@@ -333,8 +377,11 @@ pub async fn withdraw_offramp(
         },
     ];
 
-    if let Err(e) = core_ledger::ledger::execute_transaction_tx(&mut tx, &description, &entries).await {
-        return HttpResponse::InternalServerError().body(format!("Ledger entry creation failed: {}", e));
+    if let Err(e) =
+        core_ledger::ledger::execute_transaction_tx(&mut tx, &description, &entries).await
+    {
+        return HttpResponse::InternalServerError()
+            .body(format!("Ledger entry creation failed: {}", e));
     }
 
     // Initiate payout with swap provider
@@ -349,7 +396,8 @@ pub async fn withdraw_offramp(
         Ok(res) => res,
         Err(e) => {
             error!("Swap provider payout initiation failed: {:?}", e);
-            return HttpResponse::InternalServerError().body(format!("Payout initiation failed: {}", e));
+            return HttpResponse::InternalServerError()
+                .body(format!("Payout initiation failed: {}", e));
         }
     };
 
@@ -366,7 +414,8 @@ pub async fn withdraw_offramp(
     .execute(&mut *tx)
     .await
     {
-        return HttpResponse::InternalServerError().body(format!("Failed to update payout ID: {}", e));
+        return HttpResponse::InternalServerError()
+            .body(format!("Failed to update payout ID: {}", e));
     }
 
     // Queue payout job
@@ -389,7 +438,8 @@ pub async fn withdraw_offramp(
     .execute(&mut *tx)
     .await
     {
-        return HttpResponse::InternalServerError().body(format!("Failed to save payout job: {}", e));
+        return HttpResponse::InternalServerError()
+            .body(format!("Failed to save payout job: {}", e));
     }
 
     // If immediate failure, we can handle refund inside the background worker or commit first and let background worker process it immediately.
@@ -421,8 +471,9 @@ pub async fn settle_deposit(
         },
         None => return HttpResponse::Unauthorized().body("Missing authorization header"),
     };
-    
-    let expected_secret = std::env::var("INTERNAL_SERVICE_SECRET").unwrap_or_else(|_| "super-secret-token".to_string());
+
+    let expected_secret = std::env::var("INTERNAL_SERVICE_SECRET")
+        .unwrap_or_else(|_| "super-secret-token".to_string());
     if auth_header != format!("Bearer {}", expected_secret) {
         return HttpResponse::Unauthorized().body("Unauthorized");
     }
@@ -430,7 +481,10 @@ pub async fn settle_deposit(
     // 2. Database transaction
     let mut tx = match pool.begin().await {
         Ok(t) => t,
-        Err(e) => return HttpResponse::InternalServerError().body(format!("DB transaction begin failed: {}", e)),
+        Err(e) => {
+            return HttpResponse::InternalServerError()
+                .body(format!("DB transaction begin failed: {}", e))
+        }
     };
 
     // 3. Find pending invoice
@@ -448,7 +502,10 @@ pub async fn settle_deposit(
     {
         Ok(Some(inv)) => inv,
         Ok(None) => return HttpResponse::NotFound().body("Invoice not found"),
-        Err(e) => return HttpResponse::InternalServerError().body(format!("Failed to query invoice: {}", e)),
+        Err(e) => {
+            return HttpResponse::InternalServerError()
+                .body(format!("Failed to query invoice: {}", e))
+        }
     };
 
     if invoice.status == "settled" {
@@ -467,7 +524,8 @@ pub async fn settle_deposit(
     .execute(&mut *tx)
     .await
     {
-        return HttpResponse::InternalServerError().body(format!("Failed to update invoice: {}", e));
+        return HttpResponse::InternalServerError()
+            .body(format!("Failed to update invoice: {}", e));
     }
 
     // 5. Fetch user liability account
@@ -481,7 +539,9 @@ pub async fn settle_deposit(
     .await
     {
         Ok(acc) => acc.id,
-        Err(_) => return HttpResponse::InternalServerError().body("User liability account not found"),
+        Err(_) => {
+            return HttpResponse::InternalServerError().body("User liability account not found")
+        }
     };
 
     // 6. Fetch platform hot_wallet account
@@ -494,7 +554,10 @@ pub async fn settle_deposit(
     .await
     {
         Ok(acc) => acc.id,
-        Err(_) => return HttpResponse::InternalServerError().body("Platform hot_wallet account not found"),
+        Err(_) => {
+            return HttpResponse::InternalServerError()
+                .body("Platform hot_wallet account not found")
+        }
     };
 
     // 7. Execute double entry ledger transaction
@@ -510,13 +573,17 @@ pub async fn settle_deposit(
         },
     ];
 
-    if let Err(e) = core_ledger::ledger::execute_transaction_tx(&mut tx, &description, &entries).await {
-        return HttpResponse::InternalServerError().body(format!("Ledger entry creation failed: {}", e));
+    if let Err(e) =
+        core_ledger::ledger::execute_transaction_tx(&mut tx, &description, &entries).await
+    {
+        return HttpResponse::InternalServerError()
+            .body(format!("Ledger entry creation failed: {}", e));
     }
 
     // 8. Commit
     if let Err(e) = tx.commit().await {
-        return HttpResponse::InternalServerError().body(format!("Failed to commit transaction: {}", e));
+        return HttpResponse::InternalServerError()
+            .body(format!("Failed to commit transaction: {}", e));
     }
 
     HttpResponse::Ok().body("Invoice settled successfully")
