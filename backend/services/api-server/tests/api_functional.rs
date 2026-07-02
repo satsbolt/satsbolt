@@ -208,12 +208,17 @@ async fn test_tip_and_balance_flow() {
     )
     .await;
 
+    let username_a = format!("tip_user_x_{}", uuid::Uuid::new_v4());
+    let email_a = format!("x_{}@example.com", uuid::Uuid::new_v4());
+    let username_b = format!("tip_user_y_{}", uuid::Uuid::new_v4());
+    let email_b = format!("y_{}@example.com", uuid::Uuid::new_v4());
+
     // Register User A
     let req = test::TestRequest::post()
         .uri("/api/v1/auth/register")
         .set_json(json!({
-            "username": "tip_user_x",
-            "email": "x@example.com",
+            "username": username_a,
+            "email": email_a,
             "password": "pass"
         }))
         .to_request();
@@ -238,8 +243,8 @@ async fn test_tip_and_balance_flow() {
     let req = test::TestRequest::post()
         .uri("/api/v1/auth/register")
         .set_json(json!({
-            "username": "tip_user_y",
-            "email": "y@example.com",
+            "username": username_b,
+            "email": email_b,
             "password": "pass"
         }))
         .to_request();
@@ -249,7 +254,8 @@ async fn test_tip_and_balance_flow() {
 
     // Give User A 1000 sats manually (Simulate inbound Lightning deposit)
     let user_a_account = sqlx::query!(
-        "SELECT a.id FROM accounts a JOIN users u ON a.user_id = u.id WHERE u.username = 'tip_user_x' AND a.account_type = 'liability'"
+        "SELECT a.id FROM accounts a JOIN users u ON a.user_id = u.id WHERE u.username = $1 AND a.account_type = 'liability'",
+        username_a
     )
     .fetch_one(&pool)
     .await
@@ -288,7 +294,7 @@ async fn test_tip_and_balance_flow() {
         .uri("/api/v1/ledger/tip")
         .insert_header(("Authorization", format!("Bearer {}", token_a)))
         .set_json(json!({
-            "recipient_username": "tip_user_y",
+            "recipient_username": username_b,
             "amount_sats": 500,
             "memo": "Enjoy the sats!"
         }))
@@ -319,7 +325,7 @@ async fn test_tip_and_balance_flow() {
         .uri("/api/v1/ledger/tip")
         .insert_header(("Authorization", format!("Bearer {}", token_a)))
         .set_json(json!({
-            "recipient_username": "tip_user_y",
+            "recipient_username": username_b,
             "amount_sats": 1000, // They only have 500!
             "memo": "Overdraft"
         }))
