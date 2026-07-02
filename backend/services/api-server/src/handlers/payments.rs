@@ -113,7 +113,7 @@ pub async fn withdraw_lightning(
         "withdrawal_id": Uuid::new_v4().to_string(),
     });
 
-    let res = match client.post(&format!("{}/pay", ldk_node_url))
+    let res = match client.post(format!("{}/pay", ldk_node_url))
         .json(&ldk_payload)
         .send()
         .await {
@@ -128,6 +128,7 @@ pub async fn withdraw_lightning(
 
     #[derive(Deserialize)]
     struct LdkPayResponse {
+        #[allow(dead_code)]
         status: String,
         payment_hash: String,
         fee_msat: u64,
@@ -148,13 +149,13 @@ pub async fn withdraw_lightning(
     use lightning_invoice::Bolt11Invoice;
     let amount_sats = match Bolt11Invoice::from_str(&req.invoice) {
         Ok(inv) => match inv.amount_milli_satoshis() {
-            Some(msat) => (msat + 999) / 1000, // round up to nearest sat
+            Some(msat) => msat.div_ceil(1000), // round up to nearest sat
             None => return HttpResponse::BadRequest().body("Amountless invoices not supported yet"),
         }
         Err(e) => return HttpResponse::BadRequest().body(format!("Invalid invoice: {:?}", e)),
     };
 
-    let fee_sats = (ldk_data.fee_msat + 999) / 1000;
+    let fee_sats = ldk_data.fee_msat.div_ceil(1000);
     let total_sats = (amount_sats + fee_sats) as i64;
 
     if balance < total_sats {

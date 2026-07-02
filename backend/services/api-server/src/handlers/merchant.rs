@@ -42,7 +42,7 @@ pub async fn create_invoice(
         "user_id": user.id.to_string(),
     });
 
-    let res = match client.post(&format!("{}/invoice", ldk_node_url))
+    let res = match client.post(format!("{}/invoice", ldk_node_url))
         .json(&ldk_payload)
         .send()
         .await {
