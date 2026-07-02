@@ -2,6 +2,9 @@
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 
+pub mod bitnob;
+
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Quote {
     pub quote_id: String,

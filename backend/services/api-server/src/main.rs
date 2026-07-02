@@ -3,8 +3,9 @@ use dotenvy::dotenv;
 use log::info;
 use sqlx::postgres::PgPoolOptions;
 use std::env;
+use std::sync::Arc;
 
-use api_server::{bootstrap_platform_accounts, handlers};
+use api_server::{bootstrap_platform_accounts, handlers, spawn_payout_worker};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -35,17 +36,39 @@ async fn main() -> std::io::Result<()> {
         .await
         .expect("Failed to create database connection pool");
 
+    // Run database migrations
+    info!("Running database migrations...");
+    sqlx::migrate!("../../migrations")
+        .run(&pool)
+        .await
+        .expect("Failed to run database migrations");
+
     // Run platform account bootstrapping
     info!("Running platform account check and bootstrapping...");
     bootstrap_platform_accounts(&pool)
         .await
         .expect("Failed to bootstrap default platform accounts");
 
+    // Initialize Off-ramp Swap Provider
+    let swap_api_key = env::var("SWAP_PROVIDER_API_KEY").ok();
+    let swap_base_url = env::var("SWAP_PROVIDER_BASE_URL").ok();
+    let swap_provider: Arc<dyn offramp_swap::SwapProvider> = offramp_swap::bitnob::get_provider(swap_api_key, swap_base_url).into();
+    
+    // Spawn Background Payout Worker
+    spawn_payout_worker(pool.clone(), swap_provider.clone());
+
+    // Initialize Quotes Cache
+    let quotes_cache = web::Data::new(handlers::payments::QuotesCache {
+        quotes: std::sync::Mutex::new(std::collections::HashMap::new()),
+    });
+
     info!("Starting SatsBolt API server on http://{}", bind_address);
 
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(pool.clone()))
+            .app_data(web::Data::new(swap_provider.clone()))
+            .app_data(quotes_cache.clone())
             .wrap(middleware::Logger::default())
             // Register Authentication routes
             .service(
@@ -60,7 +83,14 @@ async fn main() -> std::io::Result<()> {
             .service(
                 web::scope("/api/v1/ledger")
                     .route("/balance", web::get().to(handlers::ledger::get_balance))
-                    .route("/tip", web::post().to(handlers::ledger::post_tip)),
+                    .route("/tip", web::post().to(handlers::ledger::post_tip))
+                    .route("/withdraw/lightning", web::post().to(handlers::payments::withdraw_lightning))
+                    .route("/withdraw/offramp", web::post().to(handlers::payments::withdraw_offramp)),
+            )
+            // Register Off-ramp Quote routes
+            .service(
+                web::scope("/api/v1/offramp")
+                    .route("/quote", web::post().to(handlers::payments::get_quote)),
             )
             // Register Merchant routes
             .service(
@@ -73,6 +103,11 @@ async fn main() -> std::io::Result<()> {
                         "/invoice/{id}",
                         web::get().to(handlers::merchant::get_invoice),
                     ),
+            )
+            // Register Internal routes
+            .service(
+                web::scope("/api/v1/internal")
+                    .route("/settle-deposit", web::post().to(handlers::payments::settle_deposit)),
             )
     })
     .bind(&bind_address)?

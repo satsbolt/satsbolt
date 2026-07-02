@@ -333,3 +333,177 @@ async fn test_tip_and_balance_flow() {
     let resp = test::call_service(&app, tip_req).await;
     assert_eq!(resp.status(), 400); // Bad Request (Insufficient Balance)
 }
+
+#[tokio::test]
+async fn test_lightning_deposit_merchant_and_offramp_flow() {
+    use std::sync::Arc;
+    let pool = get_test_pool().await;
+
+    // Clean up previous runs
+    let _ = sqlx::query!("DELETE FROM users WHERE username IN ('pay_user_x', 'pay_user_y')")
+        .execute(&pool)
+        .await;
+
+    let swap_provider: Arc<dyn offramp_swap::SwapProvider> = offramp_swap::bitnob::get_provider(None, None).into();
+    let quotes_cache = web::Data::new(handlers::payments::QuotesCache {
+        quotes: std::sync::Mutex::new(std::collections::HashMap::new()),
+    });
+
+    // Initialize mock Actix application with ALL routes
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(pool.clone()))
+            .app_data(web::Data::new(swap_provider.clone()))
+            .app_data(quotes_cache.clone())
+            .service(
+                web::scope("/api/v1/auth")
+                    .route("/register", web::post().to(handlers::auth::register))
+            )
+            .service(
+                web::scope("/api/v1/ledger")
+                    .route("/balance", web::get().to(handlers::ledger::get_balance))
+                    .route("/withdraw/offramp", web::post().to(handlers::payments::withdraw_offramp))
+            )
+            .service(
+                web::scope("/api/v1/offramp")
+                    .route("/quote", web::post().to(handlers::payments::get_quote))
+            )
+            .service(
+                web::scope("/api/v1/merchant")
+                    .route("/invoice", web::post().to(handlers::merchant::create_invoice))
+                    .route("/invoice/{id}", web::get().to(handlers::merchant::get_invoice))
+            )
+            .service(
+                web::scope("/api/v1/internal")
+                    .route("/settle-deposit", web::post().to(handlers::payments::settle_deposit))
+            )
+    )
+    .await;
+
+    // 1. Register a test user
+    let register_payload = json!({
+        "username": "pay_user_x",
+        "email": "pay_user_x@example.com",
+        "password": "securepassword123"
+    });
+    let req = test::TestRequest::post()
+        .uri("/api/v1/auth/register")
+        .set_json(&register_payload)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    let access_token = body["token"].as_str().unwrap().to_string();
+
+    // 2. Mock a deposit settlement
+    let invoice_id = uuid::Uuid::new_v4();
+    let payment_hash = format!("test_hash_{}", uuid::Uuid::new_v4().simple());
+    
+    // Ensure platform accounts are bootstrapped
+    let _ = api_server::bootstrap_platform_accounts(&pool).await;
+
+    let user_id = sqlx::query!("SELECT id FROM users WHERE username = 'pay_user_x'")
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+        .id;
+
+    sqlx::query!(
+        r#"
+        INSERT INTO invoices (id, user_id, payment_hash, payment_request, amount_sats, status)
+        VALUES ($1, $2, $3, $4, 10000, 'pending')
+        "#,
+        invoice_id,
+        user_id,
+        payment_hash,
+        "lnbc100u..."
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    // Call settle-deposit endpoint
+    let secret = std::env::var("INTERNAL_SERVICE_SECRET").unwrap_or_else(|_| "super-secret-token".to_string());
+    let settle_payload = json!({
+        "payment_hash": payment_hash,
+        "amount_sats": 10000
+    });
+    let req = test::TestRequest::post()
+        .uri("/api/v1/internal/settle-deposit")
+        .insert_header(("Authorization", format!("Bearer {}", secret)))
+        .set_json(&settle_payload)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    // Verify balance is now 10000
+    let req = test::TestRequest::get()
+        .uri("/api/v1/ledger/balance")
+        .insert_header(("Authorization", format!("Bearer {}", access_token)))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let balance_body: serde_json::Value = test::read_body_json(resp).await;
+    assert_eq!(balance_body["balance_sats"], 10000);
+
+    // 3. Get Off-ramp Quote
+    let quote_payload = json!({
+        "amount_sats": 5000,
+        "currency": "USD"
+    });
+    let req = test::TestRequest::post()
+        .uri("/api/v1/offramp/quote")
+        .insert_header(("Authorization", format!("Bearer {}", access_token)))
+        .set_json(&quote_payload)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+    let quote_body: serde_json::Value = test::read_body_json(resp).await;
+    let quote_id = quote_body["quote_id"].as_str().unwrap().to_string();
+
+    // 4. Initiate Off-ramp Withdrawal
+    let withdraw_payload = json!({
+        "quote_id": quote_id,
+        "bank_code": "024",
+        "account_number": "12345678",
+        "account_name": "John Doe"
+    });
+    let req = test::TestRequest::post()
+        .uri("/api/v1/ledger/withdraw/offramp")
+        .insert_header(("Authorization", format!("Bearer {}", access_token)))
+        .set_json(&withdraw_payload)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+    let withdraw_body: serde_json::Value = test::read_body_json(resp).await;
+    assert_eq!(withdraw_body["status"], "pending");
+    let withdrawal_id = withdraw_body["withdrawal_id"].as_str().unwrap().to_string();
+
+    // Verify User balance locked (10000 - 5000 - 100 = 4900)
+    let req = test::TestRequest::get()
+        .uri("/api/v1/ledger/balance")
+        .insert_header(("Authorization", format!("Bearer {}", access_token)))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let balance_body: serde_json::Value = test::read_body_json(resp).await;
+    assert_eq!(balance_body["balance_sats"], 4900);
+
+    // 5. Test Background Worker process (simulate payout success)
+    let jobs = sqlx::query!("SELECT id FROM payout_jobs WHERE status = 'queued'")
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+    assert!(!jobs.is_empty());
+
+    // Run the worker task directly
+    api_server::process_pending_payout_jobs(&pool, swap_provider.as_ref())
+        .await
+        .unwrap();
+
+    // Check withdrawal is now succeeded in DB
+    let w_status = sqlx::query!("SELECT status FROM withdrawals WHERE id = $1", uuid::Uuid::parse_str(&withdrawal_id).unwrap())
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+        .status;
+    assert_eq!(w_status, "succeeded");
+}
