@@ -52,8 +52,9 @@ async fn main() -> std::io::Result<()> {
     // Initialize Off-ramp Swap Provider
     let swap_api_key = env::var("SWAP_PROVIDER_API_KEY").ok();
     let swap_base_url = env::var("SWAP_PROVIDER_BASE_URL").ok();
-    let swap_provider: Arc<dyn offramp_swap::SwapProvider> = offramp_swap::bitnob::get_provider(swap_api_key, swap_base_url).into();
-    
+    let swap_provider: Arc<dyn offramp_swap::SwapProvider> =
+        offramp_swap::bitnob::get_provider(swap_api_key, swap_base_url).into();
+
     // Spawn Background Payout Worker
     spawn_payout_worker(pool.clone(), swap_provider.clone());
 
@@ -84,8 +85,14 @@ async fn main() -> std::io::Result<()> {
                 web::scope("/api/v1/ledger")
                     .route("/balance", web::get().to(handlers::ledger::get_balance))
                     .route("/tip", web::post().to(handlers::ledger::post_tip))
-                    .route("/withdraw/lightning", web::post().to(handlers::payments::withdraw_lightning))
-                    .route("/withdraw/offramp", web::post().to(handlers::payments::withdraw_offramp)),
+                    .route(
+                        "/withdraw/lightning",
+                        web::post().to(handlers::payments::withdraw_lightning),
+                    )
+                    .route(
+                        "/withdraw/offramp",
+                        web::post().to(handlers::payments::withdraw_offramp),
+                    ),
             )
             // Register Off-ramp Quote routes
             .service(
@@ -105,10 +112,10 @@ async fn main() -> std::io::Result<()> {
                     ),
             )
             // Register Internal routes
-            .service(
-                web::scope("/api/v1/internal")
-                    .route("/settle-deposit", web::post().to(handlers::payments::settle_deposit)),
-            )
+            .service(web::scope("/api/v1/internal").route(
+                "/settle-deposit",
+                web::post().to(handlers::payments::settle_deposit),
+            ))
     })
     .bind(&bind_address)?
     .run()

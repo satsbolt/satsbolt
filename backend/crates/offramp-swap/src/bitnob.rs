@@ -1,9 +1,9 @@
 // Bitnob Offramp Swap Provider Implementation
-use crate::{Quote, PayoutDestination, SwapResult, SwapStatus, SwapProvider};
-use std::error::Error;
+use crate::{PayoutDestination, Quote, SwapProvider, SwapResult, SwapStatus};
+use chrono::{Duration, Utc};
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
-use chrono::{Utc, Duration};
+use std::error::Error;
 
 // --- Bitnob API Requests and Responses ---
 
@@ -72,7 +72,6 @@ struct BitnobStatusData {
     status: String,
 }
 
-
 // --- Bitnob Provider ---
 
 pub struct BitnobProvider {
@@ -104,7 +103,9 @@ impl SwapProvider for BitnobProvider {
             target_asset: currency,
         };
 
-        let response: BitnobQuoteResponse = self.client.post(&url)
+        let response: BitnobQuoteResponse = self
+            .client
+            .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
             .json(&payload)
@@ -112,11 +113,15 @@ impl SwapProvider for BitnobProvider {
             .json()?;
 
         if response.status != "success" {
-            let err_msg = response.message.unwrap_or_else(|| "Failed to get quote".to_string());
+            let err_msg = response
+                .message
+                .unwrap_or_else(|| "Failed to get quote".to_string());
             return Err(err_msg.into());
         }
 
-        let data = response.data.ok_or("Bitnob returned empty data for quote")?;
+        let data = response
+            .data
+            .ok_or("Bitnob returned empty data for quote")?;
 
         Ok(Quote {
             quote_id: data.id,
@@ -141,7 +146,9 @@ impl SwapProvider for BitnobProvider {
             account_name: &destination.account_name,
         };
 
-        let response: BitnobPayoutResponse = self.client.post(&url)
+        let response: BitnobPayoutResponse = self
+            .client
+            .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
             .json(&payload)
@@ -149,11 +156,15 @@ impl SwapProvider for BitnobProvider {
             .json()?;
 
         if response.status != "success" {
-            let err_msg = response.message.unwrap_or_else(|| "Failed to initiate payout".to_string());
+            let err_msg = response
+                .message
+                .unwrap_or_else(|| "Failed to initiate payout".to_string());
             return Err(err_msg.into());
         }
 
-        let data = response.data.ok_or("Bitnob returned empty data for payout initiation")?;
+        let data = response
+            .data
+            .ok_or("Bitnob returned empty data for payout initiation")?;
 
         let status = match data.status.as_str() {
             "success" | "completed" => SwapStatus::Succeeded,
@@ -172,13 +183,17 @@ impl SwapProvider for BitnobProvider {
     fn get_status(&self, swap_id: &str) -> Result<SwapStatus, Box<dyn Error>> {
         let url = format!("{}/payouts/transactions/{}", self.base_url, swap_id);
 
-        let response: BitnobStatusResponse = self.client.get(&url)
+        let response: BitnobStatusResponse = self
+            .client
+            .get(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .send()?
             .json()?;
 
         if response.status != "success" {
-            let err_msg = response.message.unwrap_or_else(|| "Failed to fetch status".to_string());
+            let err_msg = response
+                .message
+                .unwrap_or_else(|| "Failed to fetch status".to_string());
             return Err(err_msg.into());
         }
 
@@ -204,7 +219,7 @@ impl SwapProvider for MockSwapProvider {
         // Assume exchange rate: 1 Sat = 0.0006 target currency
         let fiat_amount = (amount_sats as f64) * 0.0006;
         let fee_sats = 100; // Static 100 sats fee
-        
+
         Ok(Quote {
             quote_id: format!("mock_quote_{}", uuid::Uuid::new_v4()),
             amount_sats,

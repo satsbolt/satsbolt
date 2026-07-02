@@ -344,7 +344,8 @@ async fn test_lightning_deposit_merchant_and_offramp_flow() {
         .execute(&pool)
         .await;
 
-    let swap_provider: Arc<dyn offramp_swap::SwapProvider> = offramp_swap::bitnob::get_provider(None, None).into();
+    let swap_provider: Arc<dyn offramp_swap::SwapProvider> =
+        offramp_swap::bitnob::get_provider(None, None).into();
     let quotes_cache = web::Data::new(handlers::payments::QuotesCache {
         quotes: std::sync::Mutex::new(std::collections::HashMap::new()),
     });
@@ -357,26 +358,35 @@ async fn test_lightning_deposit_merchant_and_offramp_flow() {
             .app_data(quotes_cache.clone())
             .service(
                 web::scope("/api/v1/auth")
-                    .route("/register", web::post().to(handlers::auth::register))
+                    .route("/register", web::post().to(handlers::auth::register)),
             )
             .service(
                 web::scope("/api/v1/ledger")
                     .route("/balance", web::get().to(handlers::ledger::get_balance))
-                    .route("/withdraw/offramp", web::post().to(handlers::payments::withdraw_offramp))
+                    .route(
+                        "/withdraw/offramp",
+                        web::post().to(handlers::payments::withdraw_offramp),
+                    ),
             )
             .service(
                 web::scope("/api/v1/offramp")
-                    .route("/quote", web::post().to(handlers::payments::get_quote))
+                    .route("/quote", web::post().to(handlers::payments::get_quote)),
             )
             .service(
                 web::scope("/api/v1/merchant")
-                    .route("/invoice", web::post().to(handlers::merchant::create_invoice))
-                    .route("/invoice/{id}", web::get().to(handlers::merchant::get_invoice))
+                    .route(
+                        "/invoice",
+                        web::post().to(handlers::merchant::create_invoice),
+                    )
+                    .route(
+                        "/invoice/{id}",
+                        web::get().to(handlers::merchant::get_invoice),
+                    ),
             )
-            .service(
-                web::scope("/api/v1/internal")
-                    .route("/settle-deposit", web::post().to(handlers::payments::settle_deposit))
-            )
+            .service(web::scope("/api/v1/internal").route(
+                "/settle-deposit",
+                web::post().to(handlers::payments::settle_deposit),
+            )),
     )
     .await;
 
@@ -398,7 +408,7 @@ async fn test_lightning_deposit_merchant_and_offramp_flow() {
     // 2. Mock a deposit settlement
     let invoice_id = uuid::Uuid::new_v4();
     let payment_hash = format!("test_hash_{}", uuid::Uuid::new_v4().simple());
-    
+
     // Ensure platform accounts are bootstrapped
     let _ = api_server::bootstrap_platform_accounts(&pool).await;
 
@@ -423,7 +433,8 @@ async fn test_lightning_deposit_merchant_and_offramp_flow() {
     .unwrap();
 
     // Call settle-deposit endpoint
-    let secret = std::env::var("INTERNAL_SERVICE_SECRET").unwrap_or_else(|_| "super-secret-token".to_string());
+    let secret = std::env::var("INTERNAL_SERVICE_SECRET")
+        .unwrap_or_else(|_| "super-secret-token".to_string());
     let settle_payload = json!({
         "payment_hash": payment_hash,
         "amount_sats": 10000
@@ -500,10 +511,13 @@ async fn test_lightning_deposit_merchant_and_offramp_flow() {
         .unwrap();
 
     // Check withdrawal is now succeeded in DB
-    let w_status = sqlx::query!("SELECT status FROM withdrawals WHERE id = $1", uuid::Uuid::parse_str(&withdrawal_id).unwrap())
-        .fetch_one(&pool)
-        .await
-        .unwrap()
-        .status;
+    let w_status = sqlx::query!(
+        "SELECT status FROM withdrawals WHERE id = $1",
+        uuid::Uuid::parse_str(&withdrawal_id).unwrap()
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap()
+    .status;
     assert_eq!(w_status, "succeeded");
 }

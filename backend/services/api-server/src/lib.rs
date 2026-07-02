@@ -1,10 +1,10 @@
 pub mod auth;
 pub mod handlers;
 
-use log::{info, error, warn};
+use log::{error, info, warn};
+use offramp_swap::{SwapProvider, SwapStatus};
 use sqlx::PgPool;
 use std::sync::Arc;
-use offramp_swap::{SwapProvider, SwapStatus};
 
 pub async fn bootstrap_platform_accounts(
     pool: &sqlx::PgPool,
@@ -68,7 +68,10 @@ pub async fn process_pending_payout_jobs(
     .await?;
 
     for job in jobs {
-        info!("Processing payout job {} for withdrawal {}", job.id, job.withdrawal_id);
+        info!(
+            "Processing payout job {} for withdrawal {}",
+            job.id, job.withdrawal_id
+        );
 
         // Fetch withdrawal details
         let withdrawal = sqlx::query!(
@@ -83,13 +86,15 @@ pub async fn process_pending_payout_jobs(
         .await?;
 
         // Query the status from the swap provider and map the error to String immediately to avoid holding Box<dyn Error> (non-Send) across await points
-        let status_res = provider.get_status(&withdrawal.payment_hash).map_err(|e| format!("{:?}", e));
+        let status_res = provider
+            .get_status(&withdrawal.payment_hash)
+            .map_err(|e| format!("{:?}", e));
         match status_res {
             Ok(SwapStatus::Succeeded) => {
                 info!("Payout succeeded for swap ID {}", withdrawal.payment_hash);
-                
+
                 let mut tx = pool.begin().await?;
-                
+
                 sqlx::query!(
                     r#"
                     UPDATE withdrawals
@@ -115,8 +120,11 @@ pub async fn process_pending_payout_jobs(
                 tx.commit().await?;
             }
             Ok(SwapStatus::Failed(err)) => {
-                warn!("Payout failed for swap ID {}: {}", withdrawal.payment_hash, err);
-                
+                warn!(
+                    "Payout failed for swap ID {}: {}",
+                    withdrawal.payment_hash, err
+                );
+
                 let mut tx = pool.begin().await?;
 
                 // Refund the user liability account
@@ -143,8 +151,11 @@ pub async fn process_pending_payout_jobs(
                 .id;
 
                 let total_sats = withdrawal.amount_sats + withdrawal.fee_sats;
-                let description = format!("Refund offramp payout failure for withdrawal {}", withdrawal.id);
-                
+                let description = format!(
+                    "Refund offramp payout failure for withdrawal {}",
+                    withdrawal.id
+                );
+
                 let entries = vec![
                     core_ledger::ledger::NewLedgerEntry {
                         account_id: user_account,
@@ -160,7 +171,8 @@ pub async fn process_pending_payout_jobs(
                     },
                 ];
 
-                core_ledger::ledger::execute_transaction_tx(&mut tx, &description, &entries).await?;
+                core_ledger::ledger::execute_transaction_tx(&mut tx, &description, &entries)
+                    .await?;
 
                 sqlx::query!(
                     r#"
@@ -188,7 +200,10 @@ pub async fn process_pending_payout_jobs(
                 tx.commit().await?;
             }
             Ok(SwapStatus::Pending) => {
-                info!("Payout status still pending for swap ID {}", withdrawal.payment_hash);
+                info!(
+                    "Payout status still pending for swap ID {}",
+                    withdrawal.payment_hash
+                );
                 // Increment attempts, set status to processing if it was queued
                 sqlx::query!(
                     r#"
@@ -202,7 +217,10 @@ pub async fn process_pending_payout_jobs(
                 .await?;
             }
             Err(err_str) => {
-                error!("Failed to fetch status from provider for swap ID {}: {}", withdrawal.payment_hash, err_str);
+                error!(
+                    "Failed to fetch status from provider for swap ID {}: {}",
+                    withdrawal.payment_hash, err_str
+                );
                 sqlx::query!(
                     r#"
                     UPDATE payout_jobs
