@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO payout_jobs (id, withdrawal_id, status)\n        VALUES ($1, $2, $3)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2a321a65e338f170f6520a81384b7726af3c54360b17e4bfedd6c8f4da20c67a"
+}

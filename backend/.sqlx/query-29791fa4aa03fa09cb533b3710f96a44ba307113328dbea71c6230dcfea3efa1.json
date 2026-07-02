@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE invoices\n        SET status = 'settled', settled_at = NOW()\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "29791fa4aa03fa09cb533b3710f96a44ba307113328dbea71c6230dcfea3efa1"
+}

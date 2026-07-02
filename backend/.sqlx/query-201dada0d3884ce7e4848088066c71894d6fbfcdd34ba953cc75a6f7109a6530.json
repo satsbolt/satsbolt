@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id FROM accounts WHERE name = 'platform_fees' AND user_id IS NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "201dada0d3884ce7e4848088066c71894d6fbfcdd34ba953cc75a6f7109a6530"
+}

@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO withdrawals (id, user_id, payment_hash, payment_request, amount_sats, fee_sats, status)\n        VALUES ($1, $2, $3, $4, $5, $6, 'succeeded')\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Varchar",
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2754ae95618df40e74f80b48221334a415d821e1d663b7563bb602d4634b7cbe"
+}

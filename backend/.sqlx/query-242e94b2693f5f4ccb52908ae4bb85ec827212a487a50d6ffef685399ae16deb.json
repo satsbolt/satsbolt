@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.id FROM accounts a JOIN users u ON a.user_id = u.id WHERE u.username = $1 AND a.account_type = 'liability'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "242e94b2693f5f4ccb52908ae4bb85ec827212a487a50d6ffef685399ae16deb"
+}
