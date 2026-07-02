@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id FROM users WHERE username = 'pay_user_x'",
+  "query": "SELECT id FROM users WHERE username = $1",
   "describe": {
     "columns": [
       {
@@ -10,11 +10,13 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Text"
+      ]
     },
     "nullable": [
       false
     ]
   },
-  "hash": "d323f9cdeea7480c83d8d8d0b828e5c721d8087460d0cac8ce73b35dcdacf44f"
+  "hash": "dd99e48b1572e25db38f03da95984fda1072913b29bb6b3753a0d351583dfff6"
 }
