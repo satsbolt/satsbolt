@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO invoices (id, user_id, payment_hash, payment_request, amount_sats, status)\n        VALUES ($1, $2, $3, $4, 10000, 'pending')\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Varchar",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9e21b834710475638cccb2f042f1d7ce61d0a1347bc7bea6f1ff777d6f24181b"
+}

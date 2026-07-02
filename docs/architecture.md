@@ -22,6 +22,50 @@ SatsBolt uses a **modular, layered, custodial-first architecture** optimized for
 
 ## 2. High-Level Architecture (C4 Context + Container View)
 
+### System Architecture Diagram
+
+```mermaid
+graph TD
+    subgraph Client Application Layer
+        UserApp(["Flutter Mobile App"])
+    end
+
+    subgraph Service Layer (SatsBolt Backend)
+        API["api-server :8080"]
+        LDK["lightning-node :8081"]
+    end
+
+    subgraph Database Layer
+        DB["PostgreSQL Database"]
+    end
+
+    subgraph External Infrastructure (Polar / Regtest)
+        Bitcoin["Polar bitcoind"]
+        PolarNodes["Polar LND/CLN Nodes"]
+    end
+
+    subgraph External Fiat Off-Ramp
+        Bitnob["Bitnob Sandbox API"]
+    end
+
+    %% Client communication
+    UserApp -->|REST API Auth, Balances, Merchants| API
+    
+    %% Inter-service communication
+    API -->|HTTP: Proxy Invoice / Pay Requests| LDK
+    
+    %% Database persistence
+    API -->|Read/Write Ledger, Users, Invoices| DB
+    LDK -->|Write LDK Node State, Write Ledger Entries on Payment| DB
+    
+    %% External node communication
+    LDK -->|JSON-RPC: Block & TX Sync| Bitcoin
+    LDK -->|P2P LN Protocol: Peer Connections & Routing| PolarNodes
+    
+    %% Off-ramp communication
+    API -->|HTTP: Request Quote & Payout| Bitnob
+```
+
 ### Context Diagram (Text)
 ```
 Users (Mobile + USSD) 
@@ -72,11 +116,12 @@ SatsBolt Platform
 
 ### 3.2 Lightning Integration
 - **Library**: **LDK (Lightning Dev Kit)** — chosen for Rust-native, flexible, and suitable for custodial use cases.
+- **Service Decoupling**: Runs as a separate microservice (`lightning-node` on port 8081) to isolate LDK state management and SQLite linkages from the main REST server.
 - **Role**: Handles channel management, invoice generation, and payments.
 - **Custodial Flow**:
-  - User deposits → Platform LDK node receives
-  - Internal transfers bypass Lightning
-  - Withdrawals → Platform pays out via LDK
+  - User deposits → LDK node receives. The background worker detects the incoming payment, matches the payment hash, and triggers an authenticated HTTP webhook call to `api-server`'s `/api/v1/internal/settle-deposit` to credit the user liability ledger.
+  - Internal transfers bypass Lightning.
+  - Withdrawals → `api-server` requests payment via LDK node `/pay` route.
 
 ### 3.3 Tiered Fee Engine
 - **Model**: Volume-based tiers (familiar fintech style)
@@ -85,11 +130,13 @@ SatsBolt Platform
 
 ### 3.4 API Layer (Extensibility)
 - RESTful endpoints with clear versioning (`/api/v1/`)
-- Key placeholder endpoints prepared:
-  - `/payments/invoice`
-  - `/tips/send`
-  - `/webhooks/payment`
-  - `/integrations/shopify` (future)
+- Implemented and placeholder endpoints:
+  - `POST /api/v1/merchant/invoice` - Proxy invoice generation to LDK node.
+  - `GET /api/v1/merchant/invoice/{id}` - Retrieve invoice settlement status.
+  - `POST /api/v1/ledger/withdraw/lightning` - Pay out outbound Lightning invoices.
+  - `POST /api/v1/offramp/quote` - Fetch conversion quotes.
+  - `POST /api/v1/ledger/withdraw/offramp` - Initiate fiat bank/mobile money swaps.
+  - `/tips/send` - Send off-chain tips between users.
 - Webhooks for real-time notifications
 
 ### 3.5 Data Flow Example (User Tips Merchant)
